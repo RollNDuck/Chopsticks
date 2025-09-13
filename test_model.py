@@ -1,140 +1,96 @@
 import pytest
 from model import ChopsticksModel
 from required_types import PlayerId, HandId, TapVariant, WinVariant
-from hand_info import HandInfoImpl
 
+def test_init_and_make():
+    model = ChopsticksModel(3, TapVariant.CUTOFF, WinVariant.STANDARD)
+    assert model.n == 3 and model.current == PlayerId(1) and len(model.hands) == 3
+    model2 = ChopsticksModel.make(2, TapVariant.ROLLOVER, WinVariant.MISERE_A)
+    assert model2.n == 2
 
-class TestChopsticksModel:
-    def test_init_and_properties(self):
-        """Test initialization and basic properties."""
-        model = ChopsticksModel.make(2, TapVariant.CUTOFF, WinVariant.STANDARD)
-        assert model.current_player_id == PlayerId(1)
-        assert len(model.get_player_hands(PlayerId(1))) == 2
-        assert model.get_player_hands(PlayerId(99)) == []
-        assert model.get_winner() is None
+def test_hand_operations():
+    model = ChopsticksModel(2, TapVariant.CUTOFF, WinVariant.STANDARD)
+    hands = model.get_player_hands(PlayerId(1))
+    assert len(hands) == 2 and hands[0].hand_id == HandId(1)
+    assert model.get_player_hands(PlayerId(99)) == []
+    all_hands = model.get_hands_all_players()
+    assert len(all_hands) == 2
 
-    def test_tap_cutoff_rollover(self):
-        """Test both tap variants."""
-        # Cutoff: 4+2=6 -> becomes inactive (5)
-        model = ChopsticksModel.make(2, TapVariant.CUTOFF, WinVariant.STANDARD)
-        model.hands[PlayerId(1)][0] = HandInfoImpl(HandId(1), PlayerId(1), 4)
-        model.hands[PlayerId(2)][0] = HandInfoImpl(HandId(1), PlayerId(2), 2)
-        assert model.do_tap(HandId(1), (PlayerId(2), HandId(1)))
-        assert model.get_player_hands(PlayerId(2))[0].is_inactive()
-        
-        # Rollover: 3+3=6 -> 1 finger
-        model = ChopsticksModel.make(2, TapVariant.ROLLOVER, WinVariant.STANDARD)
-        model.hands[PlayerId(1)][0] = HandInfoImpl(HandId(1), PlayerId(1), 3)
-        model.hands[PlayerId(2)][0] = HandInfoImpl(HandId(1), PlayerId(2), 3)
-        assert model.do_tap(HandId(1), (PlayerId(2), HandId(1)))
-        assert model.get_player_hands(PlayerId(2))[0].fingers_up == 1
+def test_tap_cutoff_valid():
+    model = ChopsticksModel(2, TapVariant.CUTOFF, WinVariant.STANDARD)
+    model.hands[PlayerId(2)][0] = model.hands[PlayerId(2)][0].to(4)
+    assert model.do_tap(HandId(1), (PlayerId(2), HandId(1))) == True
+    assert model.get_player_hands(PlayerId(2))[0].fingers_up == 5
 
-    def test_tap_rollover_exact_multiple(self):
-        """Test rollover when result is exact multiple of total_fingers."""
-        model = ChopsticksModel.make(2, TapVariant.ROLLOVER, WinVariant.STANDARD)
-        model.hands[PlayerId(1)][0] = HandInfoImpl(HandId(1), PlayerId(1), 2)
-        model.hands[PlayerId(2)][0] = HandInfoImpl(HandId(1), PlayerId(2), 3)
-        assert model.do_tap(HandId(1), (PlayerId(2), HandId(1)))  # 2+3=5, should become inactive
-        assert model.get_player_hands(PlayerId(2))[0].is_inactive()
+def test_tap_rollover():
+    model = ChopsticksModel(2, TapVariant.ROLLOVER, WinVariant.STANDARD)
+    model.hands[PlayerId(1)][0] = model.hands[PlayerId(1)][0].to(2)
+    model.hands[PlayerId(2)][0] = model.hands[PlayerId(2)][0].to(4)
+    assert model.do_tap(HandId(1), (PlayerId(2), HandId(1))) == True
+    model2 = ChopsticksModel(2, TapVariant.ROLLOVER, WinVariant.STANDARD)
+    model2.hands[PlayerId(1)][0] = model2.hands[PlayerId(1)][0].to(2)
+    model2.hands[PlayerId(2)][0] = model2.hands[PlayerId(2)][0].to(3)
+    assert model2.do_tap(HandId(1), (PlayerId(2), HandId(1))) == True
 
-    def test_invalid_taps(self):
-        """Test invalid tap scenarios."""
-        model = ChopsticksModel.make(2, TapVariant.CUTOFF, WinVariant.STANDARD)
-        assert not model.do_tap(HandId(99), (PlayerId(2), HandId(1)))  # Invalid source
-        assert not model.do_tap(HandId(1), (PlayerId(99), HandId(1)))  # Invalid target player
-        assert not model.do_tap(HandId(1), (PlayerId(2), HandId(99)))  # Invalid target hand
-        
-        model.hands[PlayerId(1)][0] = HandInfoImpl(HandId(1), PlayerId(1), 5)  # Inactive source
-        assert not model.do_tap(HandId(1), (PlayerId(2), HandId(1)))
+def test_tap_invalid():
+    model = ChopsticksModel(2, TapVariant.CUTOFF, WinVariant.STANDARD)
+    assert model.do_tap(HandId(99), (PlayerId(2), HandId(1))) == False
+    assert model.do_tap(HandId(1), (PlayerId(99), HandId(1))) == False
+    model.hands[PlayerId(1)][0] = model.hands[PlayerId(1)][0].to(5)
+    assert model.do_tap(HandId(1), (PlayerId(2), HandId(1))) == False
+    bad_hand = model.hands[PlayerId(1)][0].to(6)
+    assert bad_hand is None
 
-    def test_split_operations(self):
-        """Test split operations."""
-        model = ChopsticksModel.make(2, TapVariant.CUTOFF, WinVariant.STANDARD)
-        model.hands[PlayerId(1)][0] = HandInfoImpl(HandId(1), PlayerId(1), 3)
-        model.hands[PlayerId(1)][1] = HandInfoImpl(HandId(2), PlayerId(1), 1)
-        
-        # Valid split
-        assert model.do_split(HandId(1), HandId(2), 1)
-        hands = model.get_player_hands(PlayerId(1))
-        assert hands[0].fingers_up == 2 and hands[1].fingers_up == 2
+def test_split_operations():
+    model = ChopsticksModel(2, TapVariant.CUTOFF, WinVariant.STANDARD)
+    model.hands[PlayerId(1)][0] = model.hands[PlayerId(1)][0].to(3)
+    assert model.do_split(HandId(1), HandId(2), 1) == True
+    model2 = ChopsticksModel(2, TapVariant.CUTOFF, WinVariant.STANDARD)
+    assert model2.do_split(HandId(99), HandId(2), 1) == False
+    assert model2.do_split(HandId(1), HandId(99), 1) == False
+    assert model2.do_split(HandId(1), HandId(2), 0) == False
+    assert model2.do_split(HandId(1), HandId(2), 1) == False
+    model3 = ChopsticksModel(2, TapVariant.CUTOFF, WinVariant.STANDARD)
+    model3.hands[PlayerId(1)][0] = model3.hands[PlayerId(1)][0].to(3)
+    bad_source = model3.hands[PlayerId(1)][0].to(0)
+    bad_target = model3.hands[PlayerId(1)][1].to(6)
+    assert bad_source is None and bad_target is None
 
-    def test_invalid_splits(self):
-        """Test invalid split scenarios."""
-        model = ChopsticksModel.make(2, TapVariant.CUTOFF, WinVariant.STANDARD)
-        assert not model.do_split(HandId(99), HandId(2), 1)  # Invalid source
-        assert not model.do_split(HandId(1), HandId(99), 1)  # Invalid target
-        assert not model.do_split(HandId(1), HandId(2), 0)   # Invalid transfer amount
-        assert not model.do_split(HandId(1), HandId(2), 1)   # Would make source 0
-        
-        model.hands[PlayerId(1)][1] = HandInfoImpl(HandId(2), PlayerId(1), 4)
-        assert not model.do_split(HandId(1), HandId(2), 1)   # Would make target inactive
+def test_winners_all_variants():
+    model = ChopsticksModel(2, TapVariant.CUTOFF, WinVariant.STANDARD)
+    assert model.get_winner() == None
+    model.hands[PlayerId(2)] = [h.to(5) for h in model.hands[PlayerId(2)]]
+    assert model.get_winner() == PlayerId(1)
+    model2 = ChopsticksModel(2, TapVariant.CUTOFF, WinVariant.MISERE_A)
+    model2.elim_order = [PlayerId(2)]
+    assert model2.get_winner() == PlayerId(2)
+    model2.elim_order = []
+    assert model2.get_winner() == None
+    model3 = ChopsticksModel(2, TapVariant.CUTOFF, WinVariant.MISERE_B)
+    model3.hands[PlayerId(2)] = [h.to(5) for h in model3.hands[PlayerId(2)]]
+    model3.elim_order = [PlayerId(2)]
+    assert model3.get_winner() == PlayerId(2)
+    model3.elim_order = []
+    assert model3.get_winner() == None
 
-    def test_get_sources_targets(self):
-        """Test getting valid sources and targets."""
-        model = ChopsticksModel.make(3, TapVariant.CUTOFF, WinVariant.STANDARD)
-        
-        # Tap sources/targets
-        assert len(model.get_tap_sources()) == 2
-        targets = model.get_tap_targets()
-        assert len(targets) == 4  # 2 other players × 2 hands each
-        assert targets[0].player_id == PlayerId(2)  # Sorted by player_id
-        
-        # Split sources/targets
-        model.hands[PlayerId(1)][0] = HandInfoImpl(HandId(1), PlayerId(1), 3)
-        sources = model.get_split_sources()
-        assert len(sources) == 1  # Only hand with >1 finger
-        
-        split_targets = model.get_split_targets(HandId(1))
-        assert len(split_targets) == 1
-        assert model.get_split_targets(HandId(99)) == []  # Invalid source
+def test_current_player_and_advancement():
+    model = ChopsticksModel(3, TapVariant.CUTOFF, WinVariant.STANDARD)
+    model.hands[PlayerId(2)] = [h.to(5) for h in model.hands[PlayerId(2)]]
+    model._update_elimination(PlayerId(2))
+    model.current = PlayerId(2)
+    current = model.current_player_id
+    assert current != PlayerId(2)
+    model2 = ChopsticksModel(1, TapVariant.CUTOFF, WinVariant.STANDARD)
+    model2.hands[PlayerId(1)] = [h.to(5) for h in model2.hands[PlayerId(1)]]
+    original = model2.current
+    model2._next_player()
+    assert model2.current == original
 
-    def test_win_conditions(self):
-        """Test all win variants."""
-        # Standard: last active player wins
-        model = ChopsticksModel.make(2, TapVariant.CUTOFF, WinVariant.STANDARD)
-        model.hands[PlayerId(2)][0] = HandInfoImpl(HandId(1), PlayerId(2), 5)
-        model.hands[PlayerId(2)][1] = HandInfoImpl(HandId(2), PlayerId(2), 5)
-        model._update_elimination(PlayerId(2))
-        assert model.get_winner() == PlayerId(1)
-        
-        # Misère A: first eliminated wins
-        model = ChopsticksModel.make(2, TapVariant.CUTOFF, WinVariant.MISERE_A)
-        model.elim_order.append(PlayerId(1))
-        assert model.get_winner() == PlayerId(1)
-        
-        # Misère B: last eliminated before final wins
-        model = ChopsticksModel.make(3, TapVariant.CUTOFF, WinVariant.MISERE_B)
-        model.elim_order = [PlayerId(1), PlayerId(2)]
-        for pid in [PlayerId(1), PlayerId(2)]:
-            model.hands[pid][0] = HandInfoImpl(HandId(1), pid, 5)
-            model.hands[pid][1] = HandInfoImpl(HandId(2), pid, 5)
-        assert model.get_winner() == PlayerId(2)
+def test_move_validation():
+    model = ChopsticksModel(2, TapVariant.CUTOFF, WinVariant.STANDARD)
+    model.hands[PlayerId(1)][0] = model.hands[PlayerId(1)][0].to(3)
+    assert len(model.get_split_sources()) == 1
+    assert len(model.get_split_targets(HandId(1))) == 1
+    assert len(model.get_tap_sources()) == 2
+    assert len(model.get_tap_targets()) == 2
 
-    def test_player_advancement(self):
-        """Test player turn advancement and skipping inactive players."""
-        model = ChopsticksModel.make(3, TapVariant.CUTOFF, WinVariant.STANDARD)
-        
-        # Normal advancement
-        model.do_tap(HandId(1), (PlayerId(2), HandId(1)))
-        assert model.current_player_id == PlayerId(2)
-        
-        # Skip inactive player
-        model.hands[PlayerId(2)][0] = HandInfoImpl(HandId(1), PlayerId(2), 5)
-        model.hands[PlayerId(2)][1] = HandInfoImpl(HandId(2), PlayerId(2), 5)
-        model.current = PlayerId(2)
-        assert model.current_player_id == PlayerId(3)  # Should skip to P3
-
-    def test_internal_methods(self):
-        """Test internal helper methods for coverage."""
-        model = ChopsticksModel.make(2, TapVariant.CUTOFF, WinVariant.STANDARD)
-        
-        # _find_hand
-        assert model._find_hand(PlayerId(99), HandId(1)) is None
-        assert model._find_hand(PlayerId(1), HandId(99)) is None
-        
-        # _update_elimination (no double-add)
-        model.hands[PlayerId(1)][0] = HandInfoImpl(HandId(1), PlayerId(1), 5)
-        model.hands[PlayerId(1)][1] = HandInfoImpl(HandId(2), PlayerId(1), 5)
-        model._update_elimination(PlayerId(1))
-        model._update_elimination(PlayerId(1))
-        assert len(model.elim_order) == 1

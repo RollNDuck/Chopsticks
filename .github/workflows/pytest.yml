@@ -1,4 +1,4 @@
-name: Pytest Unit Tests
+name: Pytest with Coverage
 
 on:
   push:
@@ -18,15 +18,25 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.11'  # change if needed
+          python-version: '3.12'
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest
-          pip install -r requirements.txt  # optional, if your project has this
+          pip install pytest coverage
 
-      - name: Run Pytest
-        run: pytest
+      - name: Run pytest with coverage
+        run: |
+          coverage run --branch -m pytest
+          coverage report --fail-under=100
+
+      - name: Generate coverage HTML
+        run: coverage html
+
+      - name: Upload coverage HTML artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html
+          path: htmlcov

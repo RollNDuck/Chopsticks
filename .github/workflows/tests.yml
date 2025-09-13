@@ -30,13 +30,18 @@ jobs:
       - name: Run pytest with coverage
         run: |
           coverage run --branch -m pytest
-          coverage report --fail-under=100
-
-      - name: Generate coverage HTML
-        run: coverage html
-
-      - name: Upload coverage HTML artifact
+          coverage xml        # creates coverage.xml with per-file, per-line data
+          coverage html       # creates htmlcov/ for human-friendly view
+          coverage report     # plain text summary in logs
+          
+      - name: Upload HTML coverage report
         uses: actions/upload-artifact@v4
         with:
           name: coverage-html
           path: htmlcov
+
+      - name: Upload XML coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml

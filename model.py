@@ -1,4 +1,3 @@
-"""ChopsticksModel implementation (1-based IDs, inactive as total_fingers, tracks elim_order)."""
 from __future__ import annotations
 from typing import List, Dict
 from required_types import PlayerId, HandId, HandInfo, TapVariant, WinVariant
@@ -49,7 +48,6 @@ class ChopsticksModel:
         if not player_hands or not any(h.is_active() for h in player_hands):
             self._next_player()
 
-    # --- Public API required by lab ---------------------------------------
     @property
     def current_player_id(self) -> PlayerId:
         """Return the current active player's ID."""
@@ -83,8 +81,7 @@ class ChopsticksModel:
 
     def get_split_sources(self) -> List[HandInfo]:
         """Return valid split source hands for current player."""
-        return [h for h in self.get_player_hands(self.current_player_id)
-                if h.is_active() and h.fingers_up > 1]
+        return [h for h in self.get_player_hands(self.current_player_id) if h.is_active() and h.fingers_up > 1]
 
     def get_split_targets(self, source: HandId) -> List[HandInfo]:
         """Return valid split target hands for the given source."""

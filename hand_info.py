@@ -1,4 +1,3 @@
-"""Concrete implementation of HandInfo protocol."""
 from dataclasses import dataclass, field
 from typing import cast
 from required_types import HandId, PlayerId, HandInfo
